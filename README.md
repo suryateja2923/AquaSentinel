@@ -1,70 +1,128 @@
-# Getting Started with Create React App
+# AquaSentinel / WetlandWatch AI
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+District-level satellite earth observation monitor and evidence platform for wetlands and water bodies.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📁 Repository Structure
 
-### `npm start`
+```
+final round hackthon/
+├── frontend/                     # React application
+│   ├── public/                   # Public assets (icons, manifest, index.html)
+│   ├── src/
+│   │   ├── components/           # UI panels, Landing, Login, Map, AdminConsole
+│   │   ├── config/               # Authorized users & roles config
+│   │   ├── data/                 # Wetland preserves, satellite layers & data
+│   │   ├── lib/
+│   │   │   ├── api.js            # FastAPI integration client with Firebase bearer tokens
+│   │   │   ├── auth.js           # Email/Password auth & role resolution helpers
+│   │   │   └── firebase.js       # Production Firebase SDK initialization
+│   │   ├── services/             # DB & GPS location services
+│   │   ├── App.js                # Main application component & routes
+│   │   ├── index.css             # Tailwind-style CSS & survey design tokens
+│   │   └── index.js              # Entrypoint
+│   ├── .env                      # Production & local environment variables
+│   ├── .env.example
+│   ├── package.json
+│   └── vercel.json               # Zero-config Vercel frontend deployment
+│
+├── backend/                      # FastAPI Python backend
+│   ├── main.py                   # FastAPI with CORS, Firebase Admin token verification & routes
+│   ├── set_role.py               # Administrative custom claims & roles assignment script
+│   ├── requirements.txt          # Python dependencies
+│   ├── Dockerfile                # Container deployment for Google Cloud Run
+│   ├── .env                      # Backend environment variables
+│   └── .env.example
+│
+├── firebase.json                 # Firebase Hosting & Firestore deployment configuration
+├── firestore.rules               # Role-based Firestore security rules (Admin, Government Officer)
+├── vercel.json                   # Root-level Vercel monorepo configuration
+└── README.md
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🔐 Credentials & Role Configuration
 
-### `npm test`
+### Pre-Configured Users:
+| Role | Email | Passcode / Password | Designation |
+|---|---|---|---|
+| **Master Admin** | `chsuryachowdary12@gmail.com` | `admin@2026` / `surya` | Portal Administrator (Level 5) |
+| **Government Officer** | `chilimursharma@gmail.com` | `sharma` | Authorized Government Officer (Level 4) |
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+*You can also register any new official email and password directly on the site!*
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🚀 Running Locally
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 1. Backend (FastAPI)
+```bash
+cd backend
+python -m venv .venv
+# Windows:
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux:
+# source .venv/bin/activate
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8080
+```
+Backend health check: [http://localhost:8080/health](http://localhost:8080/health)
 
-### `npm run eject`
+### 2. Frontend (React)
+```bash
+cd frontend
+npm install --legacy-peer-deps
+npm start
+```
+Frontend will be live at: [http://localhost:3000](http://localhost:3000)
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## ☁️ Deployment
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### 1. Frontend to Vercel (Zero-Config)
+1. Push to your GitHub repository:
+   ```bash
+   git push origin main
+   ```
+2. In [Vercel Dashboard](https://vercel.com):
+   - Click **Add New Project** → Import your repository `AquaSentinel`.
+   - Set Root Directory to `frontend`.
+   - Add Environment Variables:
+     - `VITE_FIREBASE_API_KEY`: `AIzaSyAMfX6b8HFV_kjriE8222hQYD7xUcXSLUE`
+     - `VITE_FIREBASE_PROJECT_ID`: `astra-database-f9830`
+     - `VITE_API_BASE_URL`: Your backend URL (e.g. Cloud Run URL)
+   - Click **Deploy**!
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 2. Frontend to Firebase Hosting
+```bash
+cd frontend
+npm run build
+cd ..
+firebase deploy --only hosting
+```
+Live URL: [https://astra-database-f9830.web.app](https://astra-database-f9830.web.app)
 
-## Learn More
+### 3. Deploy Backend to Google Cloud Run
+```bash
+cd backend
+gcloud run deploy wetlandwatch-api \
+  --source . \
+  --region asia-south1 \
+  --allow-unauthenticated \
+  --set-env-vars FIREBASE_PROJECT_ID=astra-database-f9830,FRONTEND_ORIGINS=https://astra-database-f9830.web.app
+```
+Copy the generated Cloud Run URL and set `VITE_API_BASE_URL` in `frontend/.env`.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 🛡️ Assigning Roles with `set_role.py`
+To update custom claims directly on Firebase accounts:
+```bash
+cd backend
+python set_role.py chsuryachowdary12@gmail.com admin
+python set_role.py chilimursharma@gmail.com government_officer
+```

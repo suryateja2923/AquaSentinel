@@ -745,6 +745,12 @@ export const WETLAND_PRESERVES = [
 ];
 
 export const MAP_BASEMAPS = {
+  osm: {
+    name: 'OpenStreetMap (Standard)',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  },
   satellite: {
     name: 'Satellite EO (Esri High-Res)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',

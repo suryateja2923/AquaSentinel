@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   ShieldCheck, 
   Users, 
@@ -39,9 +39,9 @@ const AdminConsole = ({ isOpen, onClose, currentUser }) => {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserDept, setNewUserDept] = useState('State Wetland Authority');
-  const [newUserDesignation, setNewUserDesignation] = useState('Senior Environmental Analyst');
+  const [newUserDesignation, setNewUserDesignation] = useState('Authorized Government Officer');
   const [newUserRole, setNewUserRole] = useState('government_user');
-  const [newUserClearance, setNewUserClearance] = useState('Level 2 (Field Officer)');
+  const [newUserClearance, setNewUserClearance] = useState('Level 3 (Government Officer)');
   
   // Passcode Update Form State
   const [newPasscode, setNewPasscode] = useState('');
@@ -53,18 +53,18 @@ const AdminConsole = ({ isOpen, onClose, currentUser }) => {
   const [notification, setNotification] = useState(null);
 
   // Load database data
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setLogs(dbService.getActivityLogs());
     setUsers(dbService.getAuthorizedUsers());
     setAdminPasscode(dbService.getAdminPasscode());
     setActiveUsersList(dbService.getActiveUsers(currentUser));
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, loadData]);
 
   // Listen for database changes dispatched from anywhere in the app
   useEffect(() => {
@@ -82,7 +82,7 @@ const AdminConsole = ({ isOpen, onClose, currentUser }) => {
       window.removeEventListener('wetlands_db_updated', handleDbUpdate);
       window.removeEventListener('wetlands_active_users_updated', handleActiveUsersUpdate);
     };
-  }, [currentUser]);
+  }, [currentUser, loadData]);
 
   // Show temporary toast / alert
   const showToast = (message, type = 'success') => {
@@ -1349,7 +1349,7 @@ const AdminConsole = ({ isOpen, onClose, currentUser }) => {
                         type="text"
                         value={newUserDesignation}
                         onChange={(e) => setNewUserDesignation(e.target.value)}
-                        placeholder="e.g. Senior Environmental Analyst"
+                        placeholder="e.g. Authorized Government Officer"
                         style={{
                           width: '100%',
                           padding: '0.65rem 0.85rem',

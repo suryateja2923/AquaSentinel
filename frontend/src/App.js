@@ -71,10 +71,9 @@ function App() {
     };
   }, []);
 
-  // User Authentication & Admin States (clears on reload so user starts on fresh landing page)
+  // User Authentication & Admin States (persists active session across reloads)
   const [currentUser, setCurrentUser] = useState(() => {
-    dbService.clearCurrentSession();
-    return null;
+    return dbService.getCurrentSession() || null;
   });
   const [isAdminConsoleOpen, setIsAdminConsoleOpen] = useState(false);
   const [activityCount, setActivityCount] = useState(() => dbService.getActivityLogs().length);
@@ -293,6 +292,7 @@ function App() {
   // User Login Success Handler
   const handleLoginSuccess = (user) => {
     dbService.addActiveUser(user, 'Logged into Portal');
+    dbService.setCurrentSession(user);
     setCurrentUser(user);
     if (user.role === 'admin') {
       setIsAdminConsoleOpen(true);

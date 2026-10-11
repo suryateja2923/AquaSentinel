@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.role == 'admin'; }
+    function isGovernmentOfficer() {
+      return signedIn() && (
+        request.auth.token.role == 'government_officer' || 
+        request.auth.token.role == 'environmental_officer'
+      );
+    }
+    function isStaff() { return isAdmin() || isGovernmentOfficer(); }
+    function owns(data) { return signedIn() && data.uid == request.auth.uid; }
+
+    // User profiles in Firestore (supports both USERS and users collections)
+    match /USERS/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow list: if isStaff();
+      allow create, update: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow list: if isStaff();
+      allow create, update: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow delete: if isAdmin();
+    }
+
+    // Wetland site records
+    match /wetlands/{siteId} {
+      allow read: if signedIn();
+      allow write: if isStaff();
+    }
+
+    // Reports and analysis results
+    match /reports/{reportId} {
+      allow read: if signedIn();
+      allow write: if isStaff();
+    }
+
+    // Audit trail & monitoring logs
+    match /auditEvents/{eventId} {
+      allow read: if isStaff();
+      allow write: if false; // Append-only via trusted backend or transaction
+    }
+
+    // Active session telemetry
+    match /activeUsers/{sessionId} {
+      allow read: if isStaff();
+      allow write: if signedIn();
+    }
+
+    // Water bodies and district maps
+    match /districts/{id}          { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /waterBodies/{id}        { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /analysisResults/{id}    { allow read: if signedIn(); allow write: if isStaff(); }
+    match /hotspots/{id}           { allow read: if signedIn(); allow write: if isStaff(); }
+
+    // Fallback: deny all by default
+    match /{document=**}           { allow read, write: if false; }
+  }
+}

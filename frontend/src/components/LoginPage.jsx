@@ -12,6 +12,7 @@ import {
   Radio
 } from 'lucide-react';
 import { dbService } from '../services/dbService';
+import { loginUser, syncUserToFirestore } from '../lib/auth';
 
 const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkMode, setDarkMode }) => {
   // Strictly check if URL contains \admin or /admin
@@ -66,7 +67,7 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
   const [loading, setLoading] = useState(false);
 
   // Handle Government User Login (Email + Password)
-  const handleUserLogin = (e) => {
+  const handleUserLogin = async (e) => {
     if (e) e.preventDefault();
     setErrorMsg('');
 
@@ -85,17 +86,60 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
 
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // 1. First try live Firebase Authentication (Email/Password)
+      let fbUser = null;
+      try {
+        fbUser = await loginUser(cleanEmail, cleanPass);
+      } catch (fbErr) {
+        // Fall back to stored passcodes/aliases if offline or local credential
+        console.info('Firebase auth attempt returned:', fbErr?.code || fbErr?.message);
+      }
+
       const isAuthorized = dbService.isEmailAuthorized(cleanEmail);
-      const user = dbService.getUserByEmail(cleanEmail);
+      let user = dbService.getUserByEmail(cleanEmail);
       const isPassValid = dbService.validateUserPassword(cleanEmail, cleanPass);
 
-      if (isAuthorized && user && isPassValid) {
-        // Record login in database
+      // If Firebase auth succeeded, construct or update user
+      if (fbUser) {
+        if (!user) {
+          user = {
+            id: fbUser.uid,
+            email: cleanEmail,
+            name: fbUser.displayName || cleanEmail.split('@')[0],
+            role: (cleanEmail === 'chilimurusharma@gmail.com' || cleanEmail === 'chilimursharma@gmail.com') ? 'admin' : 'government_user',
+            department: (cleanEmail === 'chilimurusharma@gmail.com' || cleanEmail === 'chilimursharma@gmail.com') 
+              ? 'Ministry of Environment, Forest & Climate Change (MoEFCC)'
+              : 'National Wetland Authority & State Revenue Division',
+            designation: (cleanEmail === 'chilimurusharma@gmail.com' || cleanEmail === 'chilimursharma@gmail.com')
+              ? 'Chief Portal Administrator & Executive Director'
+              : 'Authorized Government Officer & Senior Nodal Lead',
+            clearance: (cleanEmail === 'chilimurusharma@gmail.com' || cleanEmail === 'chilimursharma@gmail.com')
+              ? 'Level 5 (National Portal Administrator)'
+              : 'Level 4 (Senior Government Nodal Officer)',
+            status: 'active'
+          };
+        }
+      }
+
+      if ((fbUser || isPassValid) && (isAuthorized || fbUser || user)) {
+        if (!user) {
+          user = {
+            id: `usr_${Date.now()}`,
+            email: cleanEmail,
+            name: cleanEmail.split('@')[0],
+            role: 'government_user',
+            department: 'National Wetland Authority',
+            designation: 'Authorized Government Officer',
+            clearance: 'Level 3 Clearance',
+            status: 'active'
+          };
+        }
+        // Record login in database and automatically sync to Cloud Firestore
         dbService.recordUserLogin(user);
         dbService.setCurrentSession(user);
         dbService.addActiveUser(user, 'Logged into Wetland EO Portal');
+        syncUserToFirestore(user);
 
         // Log successful activity
         dbService.logActivity({
@@ -105,14 +149,15 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
           department: user.department,
           actionType: 'LOGIN',
           category: 'Authentication',
-          description: `Authorized user authenticated with password: ${user.name} (${user.email})`,
-          details: { email: user.email, authMethod: 'Authorized Email & Password' },
+          description: `Authorized Government Officer authenticated: ${user.name} (${user.email})`,
+          details: { email: user.email, authMethod: fbUser ? 'Firebase Authentication' : 'Authorized Credentials' },
           status: 'success'
         });
 
+        setLoading(false);
         onLoginSuccess(user);
-      } else if (!isAuthorized || !user) {
-        // Unauthorized entity - Block and record in database!
+      } else if (!isAuthorized && !user) {
+        setLoading(false);
         const errMsg = `ACCESS DENIED: The email "${cleanEmail}" is NOT registered in the authorized government database. This unauthorized login attempt has been logged for administrative investigation.`;
         setErrorMsg(errMsg);
 
@@ -128,26 +173,29 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
           status: 'alert'
         });
       } else {
-        // Registered email, but wrong password!
+        setLoading(false);
         setErrorMsg('ACCESS DENIED: Invalid Password for this authorized government account.');
 
         dbService.logActivity({
           email: cleanEmail,
-          userName: user.name,
-          role: user.role,
-          department: user.department,
+          userName: user ? user.name : cleanEmail,
+          role: user ? user.role : 'government_user',
+          department: user ? user.department : 'Government Wetland Authority',
           actionType: 'FAILED_USER_PASSWORD_ATTEMPT',
           category: 'Security Alert',
-          description: `SECURITY ALERT: Incorrect password entered for authorized account: ${user.name} (${cleanEmail}).`,
+          description: `SECURITY ALERT: Incorrect password entered for authorized account: ${cleanEmail}.`,
           details: { attemptedEmail: cleanEmail, result: 'Password Mismatch' },
           status: 'alert'
         });
       }
-    }, 300);
+    } catch (err) {
+      setLoading(false);
+      setErrorMsg(err.message || 'Authentication failed. Please verify credentials.');
+    }
   };
 
-  // Handle Admin Login (Unique Passcode)
-  const handleAdminLogin = (e) => {
+  // Handle Admin Login (Unique Passcode / Firebase)
+  const handleAdminLogin = async (e) => {
     if (e) e.preventDefault();
     setErrorMsg('');
 
@@ -166,24 +214,31 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
 
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // 1. First try live Firebase Authentication
+      let fbUser = null;
+      try {
+        fbUser = await loginUser(cleanEmail, cleanPass);
+      } catch (fbErr) {
+        console.info('Admin Firebase auth returned:', fbErr?.code || fbErr?.message);
+      }
+
       const isAuthorized = dbService.isEmailAuthorized(cleanEmail);
-      const user = dbService.getUserByEmail(cleanEmail);
+      let user = dbService.getUserByEmail(cleanEmail);
       const isPasscodeValid = dbService.validateAdminPasscode(cleanPass);
       const userPasscodeMatches = user && user.passcode && user.passcode.trim() === cleanPass;
 
-      // Allow if valid admin passcode and user is authorized admin or in authorized list
-      const isAdminUser = user && user.role === 'admin';
+      const isSharmaAdmin = cleanEmail === 'chilimurusharma@gmail.com' || cleanEmail === 'chilimursharma@gmail.com';
+      const isAdminUser = (user && user.role === 'admin') || isSharmaAdmin;
 
-      if ((isPasscodeValid || userPasscodeMatches) && (isAdminUser || isAuthorized || !user)) {
+      if (fbUser || ((isPasscodeValid || userPasscodeMatches) && (isAdminUser || isAuthorized || !user))) {
         const adminUser = user || {
-          id: 'usr_admin_01',
+          id: fbUser ? fbUser.uid : 'usr_admin_sharma',
           email: cleanEmail,
-          name: 'Administrator',
+          name: fbUser?.displayName || (isSharmaAdmin ? 'Chilimuru Sharma' : 'Portal Administrator'),
           role: 'admin',
           department: 'Ministry of Environment, Forest & Climate Change (MoEFCC)',
-          designation: 'Chief Environmental Intelligence Officer',
+          designation: 'Chief Portal Administrator & Executive Director',
           clearance: 'Level 5 (National Portal Administrator)',
           status: 'active'
         };
@@ -191,6 +246,7 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
         dbService.recordUserLogin(adminUser);
         dbService.setCurrentSession(adminUser);
         dbService.addActiveUser(adminUser, 'Logged into Portal (Admin Command Center)');
+        syncUserToFirestore(adminUser);
 
         dbService.logActivity({
           email: adminUser.email,
@@ -199,13 +255,15 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
           department: adminUser.department,
           actionType: 'ADMIN_LOGIN',
           category: 'Authentication',
-          description: `Administrator authenticated via unique passcode. Master access granted.`,
-          details: { email: adminUser.email, authType: 'Unique Passcode Verification' },
+          description: `Administrator authenticated. Master clearance granted.`,
+          details: { email: adminUser.email, authType: fbUser ? 'Firebase Authentication' : 'Admin Passcode' },
           status: 'success'
         });
 
+        setLoading(false);
         onLoginSuccess(adminUser);
       } else {
+        setLoading(false);
         setErrorMsg('ACCESS DENIED: Invalid Admin credentials or Passcode. Unauthorized administrative attempt recorded.');
 
         dbService.logActivity({
@@ -220,8 +278,13 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
           status: 'alert'
         });
       }
-    }, 350);
+    } catch (err) {
+      setLoading(false);
+      setErrorMsg(err.message || 'Administrative authentication failed.');
+    }
   };
+
+
 
   return (
     <div style={{
@@ -424,6 +487,7 @@ const LoginPage = ({ onLoginSuccess, onBackToLanding, initialTab = 'user', darkM
                 <div>{errorMsg}</div>
               </div>
             )}
+
 
             {/* TAB 1: GOVERNMENT USER LOGIN (EMAIL & PASSWORD) */}
             {activeTab === 'user' && (

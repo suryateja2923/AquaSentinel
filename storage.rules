@@ -1,0 +1,7 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Reports are served only by the API after a district check and an integrity check.
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

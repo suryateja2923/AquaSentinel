@@ -34,7 +34,7 @@ const InteractiveMap = ({
   const markersGroupRef = useRef(null);
   const inspectorMarkerRef = useRef(null);
 
-  const [activeBasemap, setActiveBasemap] = useState('satellite');
+  const [activeBasemap, setActiveBasemap] = useState('osm');
   const [inspectorData, setInspectorData] = useState(null);
   const [customYearInput, setCustomYearInput] = useState(selectedYear);
   const [isEditingYear, setIsEditingYear] = useState(true);
@@ -64,7 +64,7 @@ const InteractiveMap = ({
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     // Initial base tile layer
-    const baseConfig = MAP_BASEMAPS[activeBasemap] || MAP_BASEMAPS.satellite;
+    const baseConfig = MAP_BASEMAPS[activeBasemap] || MAP_BASEMAPS.osm;
     tileLayerRef.current = L.tileLayer(baseConfig.url, {
       attribution: baseConfig.attribution,
       maxZoom: baseConfig.maxZoom || 19,
@@ -337,6 +337,12 @@ const InteractiveMap = ({
           <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)' }}>
             <Layers size={16} /> Basemap:
           </span>
+          <button 
+            className={`tab-btn ${activeBasemap === 'osm' ? 'active' : ''}`}
+            onClick={() => setActiveBasemap('osm')}
+          >
+            OpenStreetMap
+          </button>
           <button 
             className={`tab-btn ${activeBasemap === 'satellite' ? 'active' : ''}`}
             onClick={() => setActiveBasemap('satellite')}
